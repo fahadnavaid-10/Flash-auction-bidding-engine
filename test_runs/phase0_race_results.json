@@ -1,0 +1,47 @@
+{
+  "timestamp": 1794664032.9194858,
+  "engine": "Naive Read-Then-Write (FastAPI in-memory)",
+  "total_requests": 1000,
+  "total_duration_sec": 0.3639,
+  "throughput_req_per_sec": 2747.91,
+  "bids_accepted": 1000,
+  "bids_rejected": 0,
+  "initial_stock": 1,
+  "final_stock": -999,
+  "stock_oversold_by": 999,
+  "monotonicity_violations": 571,
+  "duplicate_price_count": 994,
+  "sample_price_drops": [
+    {
+      "index": 1,
+      "prev_bid": 105.0,
+      "curr_bid": 105.0,
+      "user": "user_0002"
+    },
+    {
+      "index": 4,
+      "prev_bid": 130.0,
+      "curr_bid": 120.0,
+      "user": "user_0013"
+    },
+    {
+      "index": 7,
+      "prev_bid": 130.0,
+      "curr_bid": 105.0,
+      "user": "user_0011"
+    },
+    {
+      "index": 10,
+      "prev_bid": 130.0,
+      "curr_bid": 105.0,
+      "user": "user_0010"
+    },
+    {
+      "index": 11,
+      "prev_bid": 105.0,
+      "curr_bid": 105.0,
+      "user": "user_0009"
+    }
+  ],
+  "summary": "CATASTROPHIC RACE CONDITIONS DETECTED: Stock of 1 was oversold by 999 units! 571 bids violated strict price monotonicity. 994 bids were accepted at identical price points because of the read-then-write race window."
+}
