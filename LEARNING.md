@@ -64,10 +64,23 @@
 
 ### Phase 2: Asynchronous Durability (Redis Streams → Worker → PostgreSQL)
 - **Problem Solved:** Decouple the low-latency bid acceptance path from slow relational disk writes while guaranteeing eventual persistence and crash recovery.
+- **The Redis-Crash Durability Gap & AOF Decision Analysis:**
+  - *The Architectural Reality:* In a flash auction with 50,000 concurrent bidders, synchronous disk writes per bid are physically impossible (disk fsync latency ~1-10ms per I/O vs. required in-memory latency <1ms). Bids are therefore acknowledged to clients once committed to the Redis append-only stream in RAM.
+  - *The Gap:* If the Redis master process crashes or experiences power failure before the background worker drains the stream to PostgreSQL, recently acknowledged bids in memory could be lost.
+  - *Evaluating Redis Persistence Modes:*
+    1. **`appendfsync always`:** Flushes every write command to disk before returning.
+       - *Pros:* Zero data loss on hard crash.
+       - *Cons:* Write throughput drops to ~1,200 ops/sec. Under 50,000 bidders, requests queue, latency balloons to hundreds of milliseconds, and the auction engine freezes.
+    2. **`appendfsync everysec` (CHOSEN):** Redis background-threads `fsync` once per second.
+       - *Pros:* Sustains 50,000 - 100,000+ ops/sec throughput at sub-millisecond latency.
+       - *Cons:* In the catastrophic event of a hard OS kernel panic or host power loss, up to 1 second of confirmed bids could be lost.
+    3. **`appendfsync no`:** Lets the OS flush buffers whenever it wants (30+ seconds). Rejected due to unacceptable data loss window.
+  - *Decision & Mitigation:* We configure Redis with `appendfsync everysec`. In enterprise production on AWS, this is paired with Redis ElastiCache Multi-AZ replication with automatic failover (replicating in-memory buffers across availability zones in <2ms) and PostgreSQL as the authoritative long-term system of record.
+  - *Consumer Group Checkpointing:* The worker utilizes Redis Consumer Groups (`XREADGROUP`) and explicit acknowledgments (`XACK`). If the worker crashes mid-batch, unacknowledged bids remain in the Pending Entries List (PEL) and are safely re-claimed by another worker instance without data loss.
 - **Deliverables:**
-  - Redis Streams logging confirmed bids (`XADD`).
-  - Independent background consumer worker reading via Consumer Groups (`XREADGROUP`) and executing batch inserts (`executemany`) into PostgreSQL.
-  - Tests proving zero bid loss and evaluating the Redis AOF durability trade-off.
+  - `backend/app/worker.py`: Consumer group stream batch processor.
+  - `backend/app/db.py`: Relational schema and batch execution (`executemany`).
+  - `backend/tests/test_stream_persistence.py`: End-to-end stream durability test.
 - **Rejected Alternatives:**
   1. *Synchronous Dual-Write (Write Redis + Write Postgres in the same request):*
      - *Why Rejected:* The latency of the entire request is bound to the slowest component (Postgres disk I/O). If Postgres slows down or deadlocks, the hot bidding path halts.
