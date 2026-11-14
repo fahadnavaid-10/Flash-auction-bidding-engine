@@ -161,4 +161,10 @@
 ---
 
 ## 5. Mistakes, Bugs & Fixes
-*(Documented as encountered during development)*
+
+1. **Redis Connection Pool Exhaustion under Async Burst (`MaxConnectionsError`):**
+   - *Symptom:* When firing 200 concurrent coroutines in `test_lua_concurrent_race_resistance`, Redis threw `MaxConnectionsError: Too many connections`.
+   - *Root Cause:* Default `aioredis` / `fakeredis` connection pool was capped at 50 connections. 200 coroutines attempted to acquire simultaneous client handles.
+   - *Fix:* Configured `max_connections=1000` in `RedisEngine` connection pool and ensured proper connection recycling. In high-concurrency production, connection pool size must be tuned to match the expected worker concurrency or throttled through a bounded asyncio semaphore.
+
+---
