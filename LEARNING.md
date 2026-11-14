@@ -173,6 +173,42 @@
 
 ---
 
+### Phase 9: Comparative Concurrency Benchmark (Naive vs High-Concurrency Engine)
+- **Report Location:** `test_runs/load_benchmark_report.json`
+- **Workload:** 1,000 parallel virtual bidders fired concurrently against both engines.
+- **Comparative Metrics Table:**
+
+| Metric | Naive REST Engine | Redis Lua High-Concurrency Engine |
+|---|---|---|
+| **Stock Oversold Count** | **999 items** (Catastrophic oversell) | **0 items** (Absolute safety) |
+| **Monotonicity Violations** | **593 violations** (Price went backward) | **0 violations** (Strictly monotonic) |
+| **Accepted High Bid** | $110.0 (Stagnated due to lost updates) | $607.31 (Real market price discovery) |
+| **Throughput** | 2,528.5 req/sec (Un-synchronized false speed) | 587.4 req/sec (In-process Lua under Python GIL) |
+| **p95 Latency** | 267.5 ms | 1,522.5 ms (Python in-process Lupa emulation) |
+| **Single Deterministic Winner** | FAILED (Hundreds believed they won) | PASSED (Exactly 1 winner) |
+
+---
+
+### Hardware Limits: What a Single Laptop Cannot Prove
+1. **Loopback & Ephemeral Port Exhaustion:**
+   On a single OS, running 50,000 active TCP client connections to loopback (`127.0.0.1`) exhausts ephemeral ports (default range `~49152 - 65535`, giving only ~16k ports per IP) and triggers TCP `TIME_WAIT` socket starvation.
+2. **Resource Starvation Between Load Generator and Target:**
+   Running virtual users and servers on the same CPU cores means the load generator steals CPU cycles, L1/L2 cache, and memory bandwidth from the auction engine, inflating latency metrics.
+3. **True Network Jitter & Geographic Delay:**
+   Real-world 50,000 bidders connect over 4G/5G, broadband, and mobile networks with 20ms to 200ms latency and packet drop rates.
+
+---
+
+### Production Capacity Extrapolation (AWS Deployment Architecture)
+To handle **50,000 concurrent bidders competing in the final 10 seconds** in production:
+- **Load Balancer:** AWS Network Load Balancer (NLB) operating at Layer 4 (TCP), distributing incoming TLS connections across gateway nodes with zero HTTP termination bottlenecks.
+- **WebSocket Gateway Tier:** 4x Amazon ECS Fargate tasks (4 vCPU, 8GB RAM each) running FastAPI / Uvicorn with `uvloop`.
+  - Max capacity per node: 12,500 - 15,000 WebSocket connections.
+  - Total fleet capacity: 50,000 - 60,000 persistent connections.
+- **Hot Path In-Memory Engine:** AWS ElastiCache for Redis (m6g.2xlarge with Graviton3 processors, 8 vCPU, 26GB RAM).
+  - Native C compiled Redis runs single-threaded commands at **100,000+ ops/second** at `< 0.8ms` p99 latency.
+- **Persistence Tier:** Amazon Aurora PostgreSQL Multi-AZ (db.r6g.xlarge). Background stream consumer workers pool writes via `executemany` batches of 500 records every 50ms, consuming only ~20-50 DB connections.
+
 ## 5. Mistakes, Bugs & Fixes
 
 1. **Redis Connection Pool Exhaustion under Async Burst (`MaxConnectionsError`):**

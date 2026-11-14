@@ -108,6 +108,8 @@ async def place_bid_endpoint(bid: BidSubmission):
 
 @app.get("/auction/{auction_id}")
 async def get_auction_state(auction_id: str):
+    if redis_engine.client is None:
+        await redis_engine.connect()
     data = await redis_engine.client.hgetall(f"auction:{auction_id}")
     if not data:
         raise HTTPException(status_code=404, detail="Auction not found")

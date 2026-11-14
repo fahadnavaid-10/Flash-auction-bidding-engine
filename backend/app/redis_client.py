@@ -64,6 +64,9 @@ class RedisEngine:
         duration_seconds: float = 300.0
     ):
         """Seed initial auction state in Redis."""
+        if self.client is None:
+            await self.connect()
+
         # Get server time from Redis
         t = await self.client.time()
         now = float(t[0]) + (float(t[1]) / 1_000_000.0)
@@ -100,6 +103,8 @@ class RedisEngine:
         Executes atomic Lua script.
         Guarantees single-threaded serialization per auction key.
         """
+        if self.client is None:
+            await self.connect()
         auction_key = f"auction:{auction_id}"
         seen_key = f"auction:{auction_id}:bids_seen"
         stream_key = "auction_stream"
