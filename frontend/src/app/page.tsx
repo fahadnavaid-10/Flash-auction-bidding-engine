@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 
 interface AuctionState {
   auction_id: string;
@@ -163,7 +164,22 @@ export default function AuctionRoom() {
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>⚡ Flash Auction Engine</h1>
           <p style={{ margin: "4px 0 0", color: "#9ca3af", fontSize: 14 }}>Connected as: <strong style={{ color: "#38bdf8" }}>{myUserId}</strong></p>
         </div>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Link
+            href="/admin"
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#1e293b",
+              color: "#38bdf8",
+              textDecoration: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              border: "1px solid #334155",
+            }}
+          >
+            🛡️ Admin & Analytics Dashboard →
+          </Link>
           <span style={{
             display: "inline-block",
             padding: "6px 12px",
